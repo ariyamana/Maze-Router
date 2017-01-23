@@ -17,9 +17,7 @@ def create_Fig(initial_image):
 
     return fig, im
 
-
 def draw_State(fig, im, current_image, delay):
-
     # wait for a given time if needed.
     if delay != 0:
         time.sleep(delay)
@@ -31,7 +29,7 @@ def draw_State(fig, im, current_image, delay):
     fig.canvas.draw()
 
 if __name__ == "__main__":
-    
+
     N=10
     M=4
     image1 = np.random.randint(2, size=(N,M))
