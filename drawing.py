@@ -30,12 +30,12 @@ def create_Fig(initial_image):
     # Turn off tick labels
     ax.set_yticklabels([])
     ax.set_xticklabels([])
-    
+
     # Show the initial image
     plt.show(block=False)
 
-    raw_input()
 
+    raw_input()
     return fig, im
 
 def draw_State(fig, im, current_image, delay):
@@ -48,6 +48,9 @@ def draw_State(fig, im, current_image, delay):
 
     # redraw the figure
     fig.canvas.draw()
+
+    raw_input()
+
 
 if __name__ == "__main__":
 
