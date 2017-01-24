@@ -163,7 +163,7 @@ class layout():
             self.reset_propagation()
             return -1
 
-        #self.display()
+        self.display()
         # Back propagation
 
         current_cell = (sink[0],sink[1])
@@ -196,7 +196,7 @@ class layout():
             return -1
 
             # display
-            #self.display()
+            self.display()
 
 
         # display
@@ -307,8 +307,8 @@ class layout():
                     image[i,j] = self.colors_dict[self.grid[0,j,i]]
                     if self.routing_current_wire > 0:
                         if  self.grid[1,j,i] < 2*self.num_row*self.num_col:
-                            image[i,j] = 10 + 6*self.grid[1,j,i]
-                            #image[i,j] = self.colors_dict[self.routing_current_wire] + 6*self.grid[1,j,i]
+                            #image[i,j] = 10 + 6*self.grid[1,j,i]
+                            image[i,j] = self.colors_dict[self.routing_current_wire] + 30*self.grid[1,j,i]
                 else:
                     image[i,j] = self.colors_dict[self.grid[0,j,i]]
 

@@ -34,7 +34,7 @@ def create_Fig(initial_image):
     # Show the initial image
     plt.show(block=False)
 
-
+    print "please press enter to proceed ..."
     raw_input()
     return fig, im
 
@@ -49,6 +49,7 @@ def draw_State(fig, im, current_image, delay):
     # redraw the figure
     fig.canvas.draw()
 
+    print "please press enter to proceed ..."
     raw_input()
 
 
