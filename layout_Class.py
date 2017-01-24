@@ -15,6 +15,8 @@ class layout():
         self.wires_list = wires_list
         self.num_wires = len(wires_list)
         self.routing_current_wire = 0
+        self.Max_Shuffle = 10
+        self.routing_last_move = None
 
         #initialize the grid
         self.initialize_grid()
@@ -48,17 +50,43 @@ class layout():
     def get_closest(self,cell):
         closest = (2*(self.num_row*self.num_col),2*(self.num_row*self.num_col))
         current_dist = 2*(self.num_row*self.num_col)
-
+        best_key = None
         self.get_neighbour(cell)
 
 
         for key in self.cell_available_nghbrs.keys():
+
             nghbr = self.cell_available_nghbrs[key]
 
             if  nghbr != -1 :
                 if self.grid[1,nghbr[0], nghbr[1]] < current_dist:
                     current_dist = self.grid[1,nghbr[0], nghbr[1]]
                     closest = (nghbr[0],nghbr[1])
+                    best_key = str(key)
+                    #print best_key
+
+        # Trying to keep one direction if possible:
+        if self.routing_last_move != None:
+            last_key = str(self.routing_last_move)
+            if best_key != last_key:
+                last_nghbr = self.cell_available_nghbrs[last_key]
+                if last_nghbr != -1:
+                    if self.grid[1,last_nghbr[0], last_nghbr[1]] == current_dist:
+                        closest = (last_nghbr[0],last_nghbr[1])
+
+                    else:
+                        self.routing_last_move = str(best_key)
+                else:
+                    self.routing_last_move = str(best_key)
+            else:
+                self.routing_last_move = str(best_key)
+                        #print best_key
+        else:
+            self.routing_last_move = str(best_key)
+            #print best_key
+        # If you are trapped and have no where to go:
+        if current_dist == 2*(self.num_row*self.num_col):
+            closest = None
         return closest
 
     def get_neighbour(self, cell):
@@ -93,47 +121,61 @@ class layout():
 
     def route_single(self,wire, source,sink):
         queue = [source]
-        self.display()
+        #self.display()
+        r2=-1
         self.routing_current_wire = wire
         self.grid[1,source[0],source[1]] = 0
 
+        print 'propagating ... '
         while len(queue) > 0:
             #Pick the first item in the queue:
             (j,i) = queue[0]
+            if self.grid[1,j,i] != 2*(self.num_row*self.num_col):
+                queue.pop(0)
+            else:
+                # find the metropolis distance of the point to the source
+                r1 = self.metropolis_distance((j,i),source)
 
-            # find the metropolis distance of the point to the source
-            r1 = self.metropolis_distance((j,i),source)
+                # set the distance value in the current place:
+                self.grid[1,j,i] = r1
 
-            # set the distance value in the current place:
-            self.grid[1,j,i] = r1
-
-            #remove this item from the queue:
-            queue.pop(0)
+                #remove this item from the queue:
+                queue.pop(0)
 
             # display
-            # self.display()
+            #self.display()
 
             # check if we arrived:
             r2 = self.metropolis_distance((j,i),sink)
             if r2==1:
-                print "propagation successfull."
+                print "Done."
                 break
             else:
                 # add the neighbours of this point to the queue:
                 self.get_neighbour((j,i))
                 for key in self.cell_available_nghbrs.keys():
                     if self.cell_available_nghbrs[key] != -1 :
-                        queue.append(self.cell_available_nghbrs[key])
+                        if self.grid[1,self.cell_available_nghbrs[key][0],self.cell_available_nghbrs[key][1]] ==2*(self.num_row*self.num_col):
+                            queue.append(self.cell_available_nghbrs[key])
 
-        # display
-        self.display()
+        if r2 != 1:
+            print "Unsuccessful."
+            self.reset_propagation()
+            return -1
 
+        #self.display()
         # Back propagation
 
         current_cell = (sink[0],sink[1])
-
+        print 'Backtracking ... '
         while True:
+
             closest_cell = self.get_closest(current_cell)
+
+            if closest_cell == None:
+                print "Unsuccessful."
+                self.reset_propagation()
+                return -1
 
             # add this cell to the wire
             self.grid[0,closest_cell[0],closest_cell[1]] = self.routing_current_wire
@@ -144,21 +186,99 @@ class layout():
             # check if we arrived:
             r3 = self.metropolis_distance(current_cell,source)
 
-            if r3 ==1:
-                print "Backtracking  successfull."
-                break
+            if r3 == 1:
+                print 'Done.'
+                self.reset_propagation()
+                return 1
+        if r3 != 1:
+            print "Unsuccessful."
+            self.reset_propagation()
+            return -1
 
             # display
-            # self.display()
+            #self.display()
 
-        self.reset_propagation()
 
         # display
-        self.display()
+        #self.display()
+
+
+
+    def order_pins(self, net_index):
+        net=[]
+        for item in self.wires_list[net_index]:
+            net.append(item)
+
+        min_dist_to_origin = 2*(self.num_col*self.num_row)
+
+        for pin in net:
+            if self.metropolis_distance((0,0),pin) < min_dist_to_origin:
+                first_pin = (pin[0],pin[1])
+                min_dist_to_origin = self.metropolis_distance((0,0),pin)
+
+        distance_to_first_pin_list=[]
+        for pin in net:
+            distance_to_first_pin_list.append((pin[0],pin[1],self.metropolis_distance(pin,first_pin)))
+
+
+        print distance_to_first_pin_list
+        sorted_list = sorted(distance_to_first_pin_list, key=lambda x: x[-1],reverse=False)
+        print sorted_list
+
+        ordered_pins=[]
+        for item in sorted_list:
+            ordered_pins.append((item[0],item[1]))
+
+        return ordered_pins
+
+    def routing(self):
+        from random import shuffle
+        #self.display()
+        for net_index in range(len(self.wires_list)):
+            # failed_trial_counter = 0
+            # segment_success = False
+            # while segment_success == False and failed_trial_counter < self.Max_Shuffle:
+
+
+            ordred_pins_list = self.order_pins(net_index)
+
+
+            print "Routing wire ... ", net_index + 1
+
+            #self.display()
+
+            for pin_index in range(len(ordred_pins_list)-1):
+                print "Routing pins" , ordred_pins_list[pin_index] ,
+                print '-->', ordred_pins_list[pin_index+1]
+
+                success = self.route_single(net_index+1, ordred_pins_list[pin_index], ordred_pins_list[pin_index+1])
+
+                    # if success == -1:
+                    #     shuffle(self.wires_list[net_index])
+                    #     failed_trial_counter = failed_trial_counter+1
+                    #     # erase the previous wires_list
+                    #     self.erase_a_net(net_index+1,self.wires_list[net_index])
+                    #     segment_success=False
+                    #     break
+                # if success == 1:
+                #     segment_success= True
+
+                print '-'*50
+        print '='*50
+        print "Lee Moore completed."
 
 
 
 
+
+
+    def erase_a_net(self,net,pins_list):
+
+        for j in range(self.num_col):
+            for i in range(self.num_row):
+                if (j,i) not in pins_list:
+                    if self.grid[0,j,i] == net:
+                        self.grid[0,j,i] = 0
 
     def build_colors(self):
         # building color code based on gnuplot2 colormap:
@@ -169,12 +289,12 @@ class layout():
         color_margin = (self.num_row + self.num_col)*6
 
         # then what is white with good margis:
-        white = self.num_wires*color_margin + 6*color_margin
+        white = self.num_wires*color_margin + 10*color_margin
         self.colors_dict[0] = white
 
         # populating the colors list for wires to the colors dictionary:
         for wire in range(self.num_wires):
-            self.colors_dict[wire+1] = (wire+3)*color_margin
+            self.colors_dict[wire+1] = (wire+5)*color_margin
 
 
     def state_2_image(self):
@@ -187,7 +307,8 @@ class layout():
                     image[i,j] = self.colors_dict[self.grid[0,j,i]]
                     if self.routing_current_wire > 0:
                         if  self.grid[1,j,i] < 2*self.num_row*self.num_col:
-                            image[i,j] = self.colors_dict[self.routing_current_wire] + 6*self.grid[1,j,i]
+                            image[i,j] = 10 + 6*self.grid[1,j,i]
+                            #image[i,j] = self.colors_dict[self.routing_current_wire] + 6*self.grid[1,j,i]
                 else:
                     image[i,j] = self.colors_dict[self.grid[0,j,i]]
 
@@ -197,7 +318,7 @@ class layout():
 
     def display(self):
 
-        #print self.grid
+        print self.grid
 
 
         current_image = self.state_2_image()
@@ -214,5 +335,6 @@ class layout():
 if __name__ == "__main__":
     lay = layout(7,5,[(0,0),(3,4)],[[(1,0),(6,4)]])
     #lay.display()
-    lay.route_single(1, (1,0), (6,4))
+    #lay.route_single(1, (1,0), (6,4))
+    lay.routing()
     #lay.display()
